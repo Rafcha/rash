@@ -3,13 +3,22 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <errno.h>
+#include "modules/signals.h"
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <limits.h>
 
 #define HOST_NAME_MAX 128
 #define MAX_LINE 1024
 #define MAX_ARGS 64
 
 int main() {
-    char command[MAX_LINE];
+    char history_path[PATH_MAX];
+    snprintf(history_path, sizeof(history_path), "%s/.bash_history", getenv("HOME"));
+    read_history(history_path);
+
+    setup_shell_signals();
 
 	// username ==================
     char *username;
@@ -29,7 +38,9 @@ int main() {
 	getcwd(buffer, sizeof(buffer));
 	//============================
     puts("Welcome to \x1b[38;5;213mR\x1b[0m\x1b[38;5;197mA\x1b[0m\u001b[31mS\u001b[0m\x1b[38;5;213mH\x1b[0m\n");
-    while (1) {
+
+    while (!exit_flag) {
+        getcwd(buffer, sizeof(buffer));
         // start ========
         char display_path[256];
         const char *home = getenv("HOME");
@@ -39,14 +50,16 @@ int main() {
         } else {
             snprintf(display_path, sizeof(display_path), "%s", buffer);
         }
-        printf("\x1b[38;5;213m[ %s ]\x1b[0m@\x1b[38;5;197m[ %s ]\x1b[0m \u001b[31m%s\u001b[0m > ", username, hostname, display_path);
+        char prompt_string[512];
+        snprintf(prompt_string, sizeof(prompt_string),
+                "\x1b[38;5;213m[ %s ]\x1b[0m@\x1b[38;5;197m[ %s ]\x1b[0m \u001b[31m%s\u001b[0m > ",
+                username, hostname, display_path);
         // ================
 
         // commands ============
-        if (fgets(command, MAX_LINE, stdin) == NULL) {
-            break;
-        }
-        command[strcspn(command, "\n")] = 0;
+        char *command = readline(prompt_string);
+        if (!command) break;
+        if (*command) add_history(command);
 
         char *args[MAX_ARGS];
         int i = 0;
@@ -73,16 +86,45 @@ int main() {
         pid_t pid = fork();
 
         if (pid == 0) {
+            reset_child_signals();
             execvp(args[0], args);
-            perror("error");
-            exit(1);
+            perror("execvp error");
+            exit(127);
         } else if (pid > 0) {
-            wait(NULL);
+            int status;
+            
+            while (1) {
+                if (waitpid(pid, &status, WUNTRACED) == -1) {
+                    if (errno == EINTR) continue;
+                    perror("waitpid error");
+                    break;
+                }
+                
+                if (WIFEXITED(status)) {
+                    int exit_status = WEXITSTATUS(status);
+                    if (exit_status != 0) {
+                        printf("\n[%d] exited with code %d\n", pid, exit_status);
+                    }
+                    break;
+                } else if (WIFSIGNALED(status)) {
+                    int term_sig = WTERMSIG(status);
+                    printf("\n[%d] terminated by signal %d (%s)\n", 
+                        pid, term_sig, get_signal_description(term_sig));
+                    break;
+                } else if (WIFSTOPPED(status)) {
+                    int stop_sig = WSTOPSIG(status);
+                    printf("\n[%d] stopped by signal %d (%s)\n", 
+                        pid, stop_sig, get_signal_description(stop_sig));
+                    break;
+                }
+            }
         } else {
             perror("fork failed");
         }
         // ========================
+        free(command);
     }
-
+    write_history(history_path);
+    puts("Goodbye! ;>");
     return 0;
 }
