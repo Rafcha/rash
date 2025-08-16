@@ -9,13 +9,12 @@
 #include <readline/history.h>
 #include <limits.h>
 
-#define HOST_NAME_MAX 128
 #define MAX_LINE 1024
 #define MAX_ARGS 64
 
 int main() {
     char history_path[PATH_MAX];
-    snprintf(history_path, sizeof(history_path), "%s/.bash_history", getenv("HOME"));
+    snprintf(history_path, sizeof(history_path), "%s/.rash_history", getenv("HOME"));
     read_history(history_path);
 
     setup_shell_signals();
@@ -37,7 +36,7 @@ int main() {
 	char buffer[256];
 	getcwd(buffer, sizeof(buffer));
 	//============================
-    puts("Welcome to \x1b[38;5;213mR\x1b[0m\x1b[38;5;197mA\x1b[0m\u001b[31mS\u001b[0m\x1b[38;5;213mH\x1b[0m\n");
+    puts("Welcome to \033[34mRASH\033[0m\n");
 
     while (!exit_flag) {
         getcwd(buffer, sizeof(buffer));
@@ -52,8 +51,8 @@ int main() {
         }
         char prompt_string[512];
         snprintf(prompt_string, sizeof(prompt_string),
-                "\x1b[38;5;213m[ %s ]\x1b[0m@\x1b[38;5;197m[ %s ]\x1b[0m \u001b[31m%s\u001b[0m > ",
-                username, hostname, display_path);
+            "\001\033[34m\002[ %s ]\001\033[0m\002\001\033[0;35m\002[ %s ]\001\033[0m\002 \001\033[34m\002%s\001\033[0m\002 > ",
+            username, hostname, display_path);
         // ================
 
         // commands ============
@@ -80,6 +79,11 @@ int main() {
             getcwd(buffer, sizeof(buffer));
             continue;
         }
+        if (strcmp(args[0], "rash") == 0) {
+            printf("\nThis is RASH (RAfchaSHell) one of my favorite projects\nIf you liked the project, support me with a star on github :)\nI really tried hard on this project and I try to fix bugs\nIf you want, you can correct my code and criticize it. I won't be offended)\nBy Rafcha with love <3\n\n");
+            free(command);
+            continue;
+        }
         // ===============
 
         // fork,exec,wait =========
@@ -87,6 +91,35 @@ int main() {
 
         if (pid == 0) {
             reset_child_signals();
+
+            if (args[0] && strstr(args[0], ".sh")) {
+                char *new_args[MAX_ARGS];
+                new_args[0] = "bash";
+                new_args[1] = args[0];
+                for (int j = 1; args[j] && j < MAX_ARGS - 2; j++) {
+                    new_args[j+1] = args[j];
+                }
+                new_args[MAX_ARGS - 1] = NULL;
+
+                execvp("bash", new_args);
+                perror("execvp bash error");
+                exit(127);
+            }
+
+            if (strcmp(args[0], "rash") == 0 && args[1]) {
+                char *new_args[MAX_ARGS];
+                new_args[0] = "bash";
+                new_args[1] = args[1];
+                for (int j = 2; args[j] && j < MAX_ARGS - 1; j++) {
+                    new_args[j] = args[j];
+                }
+                new_args[i] = NULL;
+
+                execvp("bash", new_args);
+                perror("execvp bash error");
+                exit(127);
+            }
+
             execvp(args[0], args);
             perror("execvp error");
             exit(127);
