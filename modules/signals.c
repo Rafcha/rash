@@ -1,4 +1,4 @@
-// honestly, i tried to do everything myself, but I couldn't do it. 90% of this code is from Google and ChatGPT ;>
+// honestly, i tried to do everything myself, but I couldn't do it. 80% of this code is from Google and ChatGPT ;>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -6,16 +6,28 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 volatile sig_atomic_t exit_flag = 0;
 
 // signals
 static void sigint_handler(int sig) {
+    (void)sig;
     write(STDOUT_FILENO, "\n", 1);
+    rl_replace_line("", 0);
+    rl_on_new_line();
+    rl_redisplay();
 }
 
+
 static void sigtstp_handler(int sig) {
+    (void)sig;
     write(STDOUT_FILENO, "\n", 1);
+
+    rl_replace_line("", 0);
+    rl_on_new_line();
+    rl_redisplay();
 }
 
 static void sigterm_handler(int sig) {
