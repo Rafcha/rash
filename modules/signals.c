@@ -1,5 +1,3 @@
-// honestly, i tried to do everything myself, but I couldn't do it. 80% of this code is from Google and ChatGPT ;>
-
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
